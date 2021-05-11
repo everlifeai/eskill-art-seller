@@ -109,54 +109,76 @@ const ART_STYLE_KEY = 'art-style-seller'
  * Process buyer of art requests
  */
 function processMsg(msg, cb) {
-  let text = msg.value.content.text
-  if(text.startsWith('/buyer-art-req')) {
-    let buyerWallet = msg.value.content.wallet
-    let claim = msg.value.content.claim
-    let style = msg.value.content.style 
-    let imgBox = msg.value.content.text.replace('/buyer-art-req','').trim()
-    let buyer = msg.value.author
-    let ctx = msg.value.content.ctx
-    cb(null, true)
-    
-    writeBoxValueTOFileInTmpDir(imgBox, (err, filePath) => {
-      if(err) u.showErr(err)
-      else {
-        generateArtImg(style, filePath,(err, imgUrl) => {
+  if(!msg.value.content.text.startsWith('/buyer-art-req')) return cb()
+
+  const buyerWallet = msg.value.content.wallet
+  const claim = msg.value.content.claim
+  const style = msg.value.content.style
+  const imgBox = msg.value.content.text.replace('/buyer-art-req','').trim()
+  const buyer = msg.value.author
+  const ctx = msg.value.content.ctx
+  cb(null, true)
+
+  writeBoxValueToFileInTmpDir(imgBox, (err, filePath) => {
+    if(err) {
+      u.showErr(err)
+      directMessage('/art-image-err', buyer, 'Error getting picture', ctx, err => {
+        if(err) u.showErr(err)
+      })
+      return
+    }
+    generateArtImg(style, filePath, (err, imgUrl) => {
+      if(err) {
+        u.showErr(err)
+        directMessage('/art-image-err', buyer, 'Could not generate picture', ctx, err => {
           if(err) u.showErr(err)
-          else {
-            writeFileInTmpDir(imgUrl,(err, file) => {
-              console.log(file)
-              ssbClient.send({type:'box-blob-save-file',filePath: file},(err, boxValue) => {
+        })
+        return
+      }
+      writeFileInTmpDir(imgUrl, (err, file) => {
+        if(err) {
+          u.showErr(err)
+          directMessage('/art-image-err', buyer, 'Could not generate picture', ctx, err => {
+            if(err) u.showErr(err)
+          })
+          return
+        }
+
+        ssbClient.send({type:'box-blob-save-file',filePath: file},(err, boxValue) => {
+          if(err) {
+            u.showErr(err)
+            directMessage('/art-image-err', buyer, 'Could not package picture to send you', ctx, err => {
+              if(err) u.showErr(err)
+            })
+            return
+          }
+
+          tssUtil.seller_create_nft(boxValue +'', buyer, imgUrl)
+            .then(nft => {
+              tssUtil.deliverNFT(buyerWallet, nft, claim)
+                .then(tx => {
+
+                  let msg = `Here you go, it's ready: ${imgUrl} and this is the Stellar address of the NFT Asset and you can see that I'm the owner/signatory of this asset. ${nft}`
+                  directMessage('/art-image', buyer, msg, ctx, err => { if(err) u.showErr(err) })
+
+                }).catch(e => {
+                  u.showErr(e)
+                  directMessage('/art-image-err', buyer, 'Smart contract failed!', ctx, err => {
+                    if(err) u.showErr(err)
+                  })
+                })
+
+            }).catch(e => {
+              u.showErr(e)
+              directMessage('/art-image-err', buyer, 'Failed to create NFT asset!', ctx, err => {
                 if(err) u.showErr(err)
-                else {
-                  tssUtil.seller_create_nft(boxValue +'', buyer, imgUrl)
-                  .then((nft) => {
-                    console.log(nft)
-                    tssUtil.createSmartContract(buyerWallet, nft, claim)
-                    .then((tx) => {
-                      
-                      let msg = `Here you go, it's ready: ${imgUrl} and this is the Stellar address of the NFT Asset and you can see that I'm the owner/signatory of this asset. ${nft}`
-                      directMessage(null, '/art-image', buyer, msg, ctx, (err) => {
-                        if(err) u.showErr(err)
-                      })
-                    }).catch((e)=>{
-                      u.showErr(e)
-                    })
-                  }).catch((e)=>u.showErr(e))
-                }
               })
             })
 
-            
-          }
         })
-      }
+      })
     })
-  }
-   else {
-    cb()
-  }
+  })
 }
 
 function writeFileInTmpDir(fileUrl, cb) {
