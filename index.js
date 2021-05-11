@@ -3,27 +3,54 @@ const cote = require('cote')({statusLogsEnabled:false})
 const u = require('@elife/utils')
 const request = require('request')
 const fs = require('fs')
-const tssUtil = require('./tss-util')
 const shortid = require('shortid') 
 const path = require('path')
 const os = require('os')
 const https = require('https')
 const http = require('http')
 
-let ART_SERVICE_URL = process.env.ART_SERVICE_URL || 'http://149.202.214.34:8195/draw?'
+const tssUtil = require('./tss-util')
+
+let ART_SERVICE_URL
 
 /**
  *  understand/
  * This is the main entry point where we start.
- * 
+ *
  *   outcome/
- * Start our microservice and register with the communication manager
+ * If we have a registered art service URL then start
+ * our microservice and register with the communication manager
  * and SSB
  */
 function main() {
+  if(!loadConfigInfo()) return
   startMicroService()
   registerWithCommMgr()
   registerWithDirectMsg()
+}
+
+function loadConfigInfo() {
+  ART_SERVICE_URL = process.env.ART_SERVICE_URL
+  if(!ART_SERVICE_URL) return
+
+  const TSS = {}
+  TSS.publicKey = process.env.TSS_PUBLIC_KEY
+  if(!TSS.publicKey) return
+  TSS.url = process.env.TSS_URL
+  if(!TSS.url) return
+  TSS.hash = process.env.TSS_HASH
+  if(!TSS.hash) return
+  TSS.signer = process.env.TSS_SIGNER
+  if(!TSS.signer) return
+  TSS.salePrice = process.env.TSS_SALE_PRICE
+  if(!TSS.salePrice) return
+  TSS.txFunctionFee = process.env.TSS_TX_FN_FEE
+  if(!TSS.txFunctionFee) return
+
+
+  tssUtil.init(TSS)
+
+  return true
 }
 
 const directMsgClient = new cote.Requester({
