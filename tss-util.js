@@ -22,24 +22,7 @@ const SELLER = {
 let TSS
 function init(tss_) { TSS = tss_ }
 
-
-/*    understand/
- * main entry point into our program
- *
- *    way/
- * 1. Buyer creates claimable balance and gives to seller
- * 2. Seller generates NFT
- * 3. Seller executes smart contract on TSS
- * 4. Seller signs and executes the smart contract transferring
- * ownership to buyer
- *
- * TODO: note that txFunctionFee needs to be occasionally created as a
- * payment of 1 or 2 XLM to the TSS public key with the memo holding a
- * hash of the function
- */
-
-async function createSmartContract (buyerWallet, nft, claim) {
-  
+async function deliverNFT (buyerWallet, nft, claim) {
   const smartContract = await seller_xcute_tss(buyerWallet, nft, claim)
   return await seller_sign_and_deliver(smartContract)
 }
@@ -130,7 +113,7 @@ async function seller_create_nft(hash, buyerAvatar, imgURL) {
  * submit the nft and claim to the TSS to execute the smart contract
  */
 async function seller_xcute_tss(buyerWallet, nft, claim) {
-  
+
   const op = {
     nft_buyer: buyerWallet,
     nft_asset: nft,
@@ -152,7 +135,7 @@ async function seller_xcute_tss(buyerWallet, nft, claim) {
  * sign and deliver smart contract to claim fee and hand NFT to buyer
  */
 async function seller_sign_and_deliver(smartContract) {
-  
+
   const server = getSvr()
 
   const txn = new StellarSdk.Transaction(smartContract.xdr, getNetworkPassphrase())
@@ -172,6 +155,7 @@ function reqP(url, data) {
 }
 
 module.exports = {
+  init,
   seller_create_nft,
-  createSmartContract
+  deliverNFT
 }
