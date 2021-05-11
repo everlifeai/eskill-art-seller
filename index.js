@@ -28,7 +28,7 @@ function main() {
 
 const directMsgClient = new cote.Requester({
   name: 'art seller ->  direct msg',
-  key: 'everlife-dir-msg-demo-svc',
+  key: 'everlife-dir-msg-svc',
 })
 
 
