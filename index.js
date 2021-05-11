@@ -64,10 +64,12 @@ const ssbClient = new cote.Requester({
   key: 'everlife-ssb-svc',
 })
 
-const levelDbClient = new cote.Requester({
-  name: 'art seller -> leveldb',
-  key: 'everlife-db-svc',
+const commMgrClient = new cote.Requester({
+  name: 'art seller -> CommMgr',
+  key: 'everlife-communication-svc',
 })
+
+let msKey = 'eskill-art-seller-svc'
 
 function registerWithDirectMsg() {
   directMsgClient.send({
@@ -77,49 +79,19 @@ function registerWithDirectMsg() {
   })
 }
 
-const commMgrClient = new cote.Requester({
-  name: 'art seller -> CommMgr',
-  key: 'everlife-communication-svc',
-})
-
-let msKey = 'eskill-art-seller-svc'
-
-/*      outcome/
- * Register ourselves as a message handler with the communication
- * manager.
- */
-function registerWithCommMgr() {
-  commMgrClient.send({
-      type: 'register-msg-handler',
-      mskey: msKey,
-      mstype: 'msg',
-      mshelp: [ { cmd: '/buy_art', txt: 'send a requst to seller' } ],
-  }, (err) => {
-      if(err) u.showErr(err)
-  })
-}
-
-
-
 function startMicroService() {
-    /**
-     *   understand/
-     * The microService (partitioned by key to prevent conflicting with other services)
-     */
+  /**
+   *   understand/
+   * The microService (partitioned by key to prevent conflicting with other services)
+   */
+  const svc = new cote.Responder({
+    name: 'Art buyer skill',
+    key: msKey
+  })
 
-    const svc = new cote.Responder({
-        name: 'Art buyer skill',
-        key: msKey
-    })
-
-    svc.on('msg', (req, cb) => {
-      cb()
-    })
-    
-    svc.on('direct-msg', (req, cb)  => {
-      processMsg(req.msg, cb)
-    })
-
+  svc.on('direct-msg', (req, cb)  => {
+    processMsg(req.msg, cb)
+  })
 }
 
 
@@ -132,24 +104,11 @@ function sendMsgOnLastChannel(req) {
 
 const ART_STYLE_KEY = 'art-style-seller'
 
-
-function getStyle(cb) {
-  levelDbClient.send({ type: 'get', key: LEVEL_DB_KEY },(err, val) =>{
-      if(err || !val) {
-          cb(null, ['muse','rain','scream','udnie','wave','wreck'].join())
-      } else cb(null, val.join())
-  })
-}
-
 /**
  *  outcome/
- * If this is a message for art buyer sent by art seller,
- * relay it to my owner over the last used channel
- * 
- * @param {*} msg 
+ * Process buyer of art requests
  */
 function processMsg(msg, cb) {
-  console.log(msg)
   let text = msg.value.content.text
   if(text.startsWith('/buyer-art-req')) {
     let buyerWallet = msg.value.content.wallet
@@ -201,57 +160,33 @@ function processMsg(msg, cb) {
 }
 
 function writeFileInTmpDir(fileUrl, cb) {
-  
   let name = shortid.generate()
-  
-  let inFile = path.join(os.tmpdir(), name)
-  
-  const file = fs.createWriteStream(inFile);
-  if(fileUrl.startsWith('https')) {
-    https.get(fileUrl, function(response) {
-      response.pipe(file);
-      file.on('finish', ()=>{
-        file.close()
-        cb(null, inFile)
-      })
-    });
-  } else {
-    http.get(fileUrl, function(response) {
-      response.pipe(file);
-      file.on('finish', () => {
-        file.close()
-        cb(null, inFile)
-      })
-    }); 
-  }
+  let f = path.join(os.tmpdir(), name)
 
-}
-
-
-function writeBoxValueTOFileInTmpDir(boxValue, cb) {
-  ssbClient.send({type:'unbox-blob-save-file', blobId: boxValue}, (err, filepath) => {
-    if(err){
-      console.log(err)
-      cb(err)
-    } 
-    else {
-      console.log(filepath)
-      cb(null, filepath)
-    }
+  const file = fs.createWriteStream(f);
+  let m = http
+  if(fileUrl.startsWith('https')) m = https
+  m.get(fileUrl, resp => {
+    resp.pipe(file)
+    file.on('finish', ()=>{
+      file.close()
+      cb(null, f)
+    })
   })
 }
 
+
+function writeBoxValueToFileInTmpDir(boxValue, cb) {
+  ssbClient.send({type:'unbox-blob-save-file', blobId: boxValue}, cb)
+}
+
 function generateArtImg(style, filePath, cb) {
-  console.log(style)
-  console.log(filePath)
-  console.log('Generate Image')
   const options = {
     method:'POST',
     uri: ART_SERVICE_URL,
     formData: {
       img: fs.createReadStream(filePath),
       style: style
-  
     }
   }
   request(options, (err, res, body) => {
@@ -263,18 +198,18 @@ function generateArtImg(style, filePath, cb) {
         cb(e)
       }
     }
-  });
+  })
 }
 
 /*      outcome/
  * Post a 'direct message' to someone on my feed and let the network
  * replicate it to the recipient
  */
-function directMessage(req, type, userID, msg, ctx, cb) {
+function directMessage(type, userID, msg, ctx, cb) {
   let message = {
     type: 'direct-msg',
     to: userID,
-    text: type + " " + msg,   
+    text: type + " " + msg,
   }
   if(ctx) message['ctx'] = ctx
   ssbClient.send({
@@ -283,16 +218,30 @@ function directMessage(req, type, userID, msg, ctx, cb) {
   }, cb)
 }
 
+/*
 const LEVEL_DB_KEY = 'art-service'
 
+const levelDbClient = new cote.Requester({
+  name: 'art seller -> leveldb',
+  key: 'everlife-db-svc',
+})
+
+
 function storeArtStyle(avatarid, style) {
-  console.log(avatarid + style)
   levelDbClient.send({type: 'put', key: LEVEL_DB_KEY + avatarid, val: JSON.stringify({style : style}) }, (err) => {
     if(err)u.showErr(err + '233')
   })
 }
 
-/**function storeClaimableBalanceId(avatarid, balanceId) {
+function getStyle(cb) {
+  levelDbClient.send({ type: 'get', key: LEVEL_DB_KEY },(err, val) =>{
+      if(err || !val) {
+          cb(null, ['muse','rain','scream','udnie','wave','wreck'].join())
+      } else cb(null, val.join())
+  })
+}
+
+function storeClaimableBalanceId(avatarid, balanceId) {
   getAvatarArtDetails(avatarid,(err, data)=>{
     if(err) u.showErr(err)
     else {
@@ -303,18 +252,18 @@ function storeArtStyle(avatarid, style) {
     }
   })
 }
-**/
+
 function getAvatarArtDetails(avatarid, cb) {
-  console.log(avatarid)
   levelDbClient.send({type: 'get', key: LEVEL_DB_KEY + avatarid}, (err, data) => {
     if(err){
       u.showErr('error ' +err)
       cb(err)
     } else {
-      console.log(data)
       cb(null, JSON.parse(data))
     }
   })
-} 
+}
+
+**/
 
 main()
