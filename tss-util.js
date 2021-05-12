@@ -21,6 +21,7 @@ const SELLER = {
 
 let TSS
 function init(tss_) { TSS = tss_ }
+function getTSS() { return TSS }
 
 async function deliverNFT (buyerWallet, nft, claim) {
   const smartContract = await seller_xcute_tss(buyerWallet, nft, claim)
@@ -155,6 +156,7 @@ function reqP(url, data) {
 }
 
 module.exports = {
+  getTSS,
   init,
   seller_create_nft,
   deliverNFT

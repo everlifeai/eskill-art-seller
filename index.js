@@ -83,6 +83,21 @@ function registerWithDirectMsg() {
   })
 }
 
+/*      outcome/
+ * Register ourselves as a message handler with the communication
+ * manager.
+ */
+function registerWithCommMgr() {
+  commMgrClient.send({
+      type: 'register-msg-handler',
+      mskey: msKey,
+      mstype: 'msg',
+      mshelp: [ { cmd: '/nft_info', txt: 'get nft info for debugging' } ],
+  }, (err) => {
+      if(err) u.showErr(err)
+  })
+}
+
 function startMicroService() {
   /**
    *   understand/
@@ -96,15 +111,23 @@ function startMicroService() {
   svc.on('direct-msg', (req, cb)  => {
     processMsg(req.msg, cb)
   })
+
+  svc.on('msg', (req, cb) => {
+    if(req.msg !== '/nft_info') return cb()
+    cb(null, true)
+    sendReply(JSON.stringify(tssUtil.getTSS(), 0, 2), req)
+  })
 }
 
 
-function sendMsgOnLastChannel(req) {
-  req.type = 'reply-on-last-channel'
+function sendReply(msg, req) {
+  req.type = 'reply'
+  req.msg = String(msg)
   commMgrClient.send(req, (err) => {
       if(err) u.showErr(err)
   })
 }
+
 
 const ART_STYLE_KEY = 'art-style-seller'
 
