@@ -138,6 +138,8 @@ const ART_STYLE_KEY = 'art-style-seller'
 function processMsg(msg, cb) {
   if(!msg.value.content.text.startsWith('/buyer-art-req')) return cb()
 
+  u.showMsg('Starting /buyer-art-req...')
+
   const buyerWallet = msg.value.content.wallet
   const claim = msg.value.content.claim
   const style = msg.value.content.style
@@ -146,6 +148,11 @@ function processMsg(msg, cb) {
   const ctx = msg.value.content.ctx
   cb(null, true)
 
+
+  const info = { buyerWallet, claim, style, imgBox, buyer, ctx }
+  u.showMsg(`Info: ${JSON.stringify(info, 0, 2)}`)
+
+  u.showMsg('Writing blob to tmp directory...')
   writeBoxValueToFileInTmpDir(imgBox, (err, filePath) => {
     if(err) {
       u.showErr(err)
@@ -154,6 +161,8 @@ function processMsg(msg, cb) {
       })
       return
     }
+
+    u.showMsg('Generating image...')
     generateArtImg(style, filePath, (err, imgUrl) => {
       if(err) {
         u.showErr(err)
@@ -162,6 +171,8 @@ function processMsg(msg, cb) {
         })
         return
       }
+
+      u.showMsg('Generating image...')
       writeFileInTmpDir(imgUrl, (err, file) => {
         if(err) {
           u.showErr(err)
@@ -171,6 +182,7 @@ function processMsg(msg, cb) {
           return
         }
 
+        u.showMsg('Saving image as blob...')
         ssbClient.send({type:'box-blob-save-file',filePath: file},(err, boxValue) => {
           if(err) {
             u.showErr(err)
@@ -180,13 +192,17 @@ function processMsg(msg, cb) {
             return
           }
 
+          u.showMsg('Creating NFT...')
           tssUtil.seller_create_nft(boxValue +'', buyer, imgUrl)
             .then(nft => {
+              u.showMsg('Delivering NFT...')
               tssUtil.deliverNFT(buyerWallet, nft, claim)
                 .then(tx => {
 
                   let msg = `Here you go, it's ready: ${imgUrl} and this is the Stellar address of the NFT Asset and you can see that I'm the owner/signatory of this asset. ${nft}`
                   directMessage('/art-image', buyer, msg, ctx, err => { if(err) u.showErr(err) })
+
+                  u.showMsg('Done!')
 
                 }).catch(e => {
                   u.showErr(e)
@@ -244,6 +260,7 @@ function generateArtImg(style, filePath, cb) {
       try {
         cb(null, JSON.parse(body).img)
       } catch(e) {
+        u.showErr(body)
         cb(e)
       }
     }
