@@ -30,27 +30,31 @@ function main() {
 }
 
 function loadConfigInfo() {
-  ART_SERVICE_URL = process.env.ART_SERVICE_URL
+  ART_SERVICE_URL = v('ART_SERVICE_URL')
   if(!ART_SERVICE_URL) return
 
   const TSS = {}
-  TSS.publicKey = process.env.TSS_PUBLIC_KEY
+  TSS.publicKey = v('TSS_PUBLIC_KEY')
   if(!TSS.publicKey) return
-  TSS.url = process.env.TSS_URL
+  TSS.url = v('TSS_URL')
   if(!TSS.url) return
-  TSS.hash = process.env.TSS_HASH
+  TSS.hash = v('TSS_HASH')
   if(!TSS.hash) return
-  TSS.signer = process.env.TSS_SIGNER
+  TSS.signer = v('TSS_SIGNER')
   if(!TSS.signer) return
-  TSS.salePrice = process.env.TSS_SALE_PRICE
+  TSS.salePrice = v('TSS_SALE_PRICE')
   if(!TSS.salePrice) return
-  TSS.txFunctionFee = process.env.TSS_TX_FN_FEE
+  TSS.txFunctionFee = v('TSS_TX_FN_FEE')
   if(!TSS.txFunctionFee) return
 
 
   tssUtil.init(TSS)
 
   return true
+
+  function v(n) {
+    if(process.env[n]) return process.env[n].trim()
+  }
 }
 
 const directMsgClient = new cote.Requester({
